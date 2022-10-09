@@ -1,0 +1,52 @@
+version: '3.9'
+
+services:
+  gitea-db:
+    image: postgres:latest
+    container_name: gitea-db
+    restart: unless-stopped
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /var/docker/gitea/db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=${PG_PASSWORD}
+      - POSTGRES_USER=${PG_USER}
+      - POSTGRES_DB=${PG_DB}
+
+  gitea-app:
+    image: gitea/gitea:latest
+    container_name: gitea-app
+    restart: unless-stopped
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /var/docker/gitea/data:/data
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - DB_TYPE=postgres
+      - DB_HOST=gitea-db:5432
+      - DB_NAME=${PG_DB}
+      - DB_USER=${PG_USER}
+      - DB_PASSWD=${PG_PASSWORD}
+      - GITEA__service__DISABLE_REGISTRATION=true   # remove to allow user to register
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gitea.entrypoints=websecure"
+      - "traefik.http.routers.gitea.rule=Host(`${GITEA_URL}`)"
+      - "traefik.http.routers.gitea.tls=true"
+      - "traefik.http.routers.gitea.tls.certresolver=default"
+      - "traefik.http.routers.gitea.middlewares=secHeaders@file"
+      - "traefik.http.services.gitea.loadbalancer.server.port=3000"
+    depends_on:
+      - gitea-db
+    networks:
+      - traefik_proxy
+      - default
+
+networks:
+  traefik_proxy:
+    name: traefik_proxy
+  default:
+    driver: bridge
